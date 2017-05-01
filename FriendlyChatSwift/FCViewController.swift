@@ -113,11 +113,38 @@ class FCViewController: UIViewController, UINavigationControllerDelegate {
     // MARK: Remote Config
     
     func configureRemoteConfig() {
-        // TODO: configure remote configuration settings
+        // create remote config setting to enable dev mode
+        let remoteConfigSettings = FIRRemoteConfigSettings(developerModeEnabled: true)
+        remoteConfig = FIRRemoteConfig.remoteConfig()
+        remoteConfig.configSettings = remoteConfigSettings!
+        
+        
     }
     
     func fetchConfig() {
-        // TODO: update to the current coniguratation
+        // set default expiration duration between fetches
+        var expirationDuration: Double = 3600
+        // set to 0 seconds if dev mode is enabled
+        if remoteConfig.configSettings.isDeveloperModeEnabled {
+            expirationDuration = 0
+        }
+        // fetch config
+        remoteConfig.fetch(withExpirationDuration: expirationDuration) { (status, error) in
+            if status == .success {
+                print("config fetched")
+                self.remoteConfig.activateFetched()
+                let friendlyMsgLength = self.remoteConfig["friendly_msg_length"]
+                if friendlyMsgLength.source != .static {
+                    self.msglength = friendlyMsgLength.numberValue!
+                    print("friend msg length config: \(self.msglength)")
+                } else {
+                    print("not applied because source is static")
+                }
+            } else {
+                print("config not fetched")
+                print("error: \(String(describing: error))")
+            }
+        }
     }
     
     // MARK: Sign In and Out
@@ -138,9 +165,11 @@ class FCViewController: UIViewController, UINavigationControllerDelegate {
             backgroundBlur.effect = nil
             messageTextField.delegate = self
             
-            // TODO: Set up app to send and receive messages when signed in
+            // Set up app to send and receive messages when signed in
             configureDatabase()
             configureStorage()
+            configureRemoteConfig()
+            fetchConfig()
         }
     }
     
@@ -159,7 +188,7 @@ class FCViewController: UIViewController, UINavigationControllerDelegate {
     
     func sendPhotoMessage(photoData: Data) {
         // build a path using the user's ID and a timestamp
-        let imagePath = "chat_photos" + FIRAuth.auth()!.currentUser!.uid + "/\(Double(Date.timeIntervalSinceReferenceDate * 1000)).jpg"
+        let imagePath = "chat_photos/" + FIRAuth.auth()!.currentUser!.uid + "/\(Double(Date.timeIntervalSinceReferenceDate * 1000)).jpg"
         let metadata = FIRStorageMetadata()
         metadata.contentType = "image/jpeg"
         
